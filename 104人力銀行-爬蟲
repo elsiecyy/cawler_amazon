@@ -1,0 +1,192 @@
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+from selenium.webdriver import chrome
+import os
+from os import listdir
+import json
+import time
+
+path = r'./Tmp_etl'
+if not os.path.exists(path):
+    os.mkdir(path)
+
+headers = {'user-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                         'Chrome/86.0.4240.111 Safari/537.36',
+           'Referer': 'https://m.104.com.tw/'}
+
+k = str(input('請輸入查詢關鍵字：'))
+i = int(input('請輸入頁數：'))
+
+# keyword = '資料分析師'
+# pages = 1
+
+if i <= 150:
+    for pages in range(1, i + 1):
+        print('----第 ' + str(pages) + ' 頁----')
+        url = 'https://www.104.com.tw/jobs/search/?ro=0&kwop=7&keyword=' + k + '&expansionType=area%2Cspec%2Ccom%2Cjob%2Cwf%2Cwktm&order=14&asc=0&page=' + str(
+            pages) + '&mode=s&jobsource=2018indexpoc'
+
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        # print(soup)
+
+        job = soup.select('a.js-job-link')  # 篩選a標籤 內有連結href
+        # print(job)  # type--> BS4set
+
+        columns = ['公司名稱', '職稱', '擅長工具', '薪資', '工作內容', '福利制度', '工作地區', '工作經歷', '學歷要求', '其他條件', '連絡人', '電話', '104連結']
+        CompanyList = []
+        AddressList = []
+        YearList = []
+        EduList = []
+        TitleList = []
+        SalList = []
+        ContList = []
+        LinkList = []
+        LangList = []
+        OtherList = []
+        SpecList = []
+        SkillList = []
+        WelfList = []
+        ContactList = []
+        PhoneList = []
+        MailList = []
+        for Link in job:
+            JobLink = 'http://' + Link['href'].split('//')[-1]
+            # print(JobLink)  # 職缺頁面只能爬出部份內容
+            res2 = requests.get(JobLink, headers=headers)
+            soup2 = BeautifulSoup(res2.text, 'html.parser')
+            jobUrl = soup2.select('link')[0]['href']
+            # print(jobUrl)    # 職缺詳細內容頁面真正的連結,但需在job/加上'ajax/content'加上不同的值'2ixah'
+            UrlNo = jobUrl.split('/')[-1]  # 取連結最後'job/'的值'2ixah'
+            # print(UrlNo)
+            New_jobUrl = 'https://www.104.com.tw/job/' + 'ajax/content/' + UrlNo
+            # print(New_jobUrl)
+            # # 測試用連結 JobLink1 = 'https://www.104.com.tw/job/ajax/content/2ixah'
+            res3 = requests.get(New_jobUrl, headers=headers)
+            soup3 = BeautifulSoup(res3.text, 'html.parser')
+            # print(soup3)
+            json_Data = json.loads(res3.text)
+            # print(json_Data)
+
+            Job_Name = json_Data['data']['header']['custName']
+            CompanyList.append(Job_Name)
+            print(CompanyList)  # 公司名稱l
+            Job_Title = json_Data['data']['header']['jobName']
+            TitleList.append(Job_Title)
+            print(TitleList)  # 職稱
+            LinkList.append(jobUrl)
+            print(LinkList)  # 104連結
+            Job_content = json_Data['data']['jobDetail']['jobDescription']
+            ContList.append(Job_content)
+            # print(ContList)  # 工作內容
+            Job_Sal = json_Data['data']['jobDetail']['salary']
+            SalList.append(Job_Sal)
+            # print(SalList)  # 薪資
+            Job_region = json_Data['data']['jobDetail']['addressRegion']
+            AddressList.append(Job_region)
+            # print(AddressList)  # 地區
+            Job_workExp = json_Data['data']['condition']['workExp']
+            YearList.append(Job_workExp)
+            # print(YearList)  # 工作經歷
+            Job_edu = json_Data['data']['condition']['edu']
+            EduList.append(Job_edu)
+            # print(EduList)  # 學歷
+            # Job_major = json_Data['data']['condition']['major']
+            # print(Job_major)  # 科系
+            # Job_language = json_Data['data']['condition']['language']  # ['ability'] #['language']
+            # LangList.append(Job_language)
+            # # print(LangList)  # 語言
+            Job_other = json_Data['data']['condition']['other']
+            OtherList.append(Job_other)
+            # print(OtherList)  # 其他條件
+
+            Job_specialty = json_Data['data']['condition']['specialty']
+            # print(Job_specialty)
+            # SpecList.append(Job_specialty)
+
+            Dlist = []
+            for item in Job_specialty:
+                desc = item["description"]
+                # print(desc)
+                #     print('========')
+                # print(Dlist) #一次只列出一家的技能list
+                Dlist.append(desc)
+            SpecList.append(Dlist)
+            print(SpecList)  # 擅長工具
+
+            # Job_skill = json_Data['data']['condition']['skill']
+            # SkillList.append(Job_skill)
+            # print(SkillList)  # 工作技能
+            Job_welfare = json_Data['data']['welfare']['welfare']
+            WelfList.append(Job_welfare)
+            # print(WelfList)  # 福利制度
+            Job_Hr = json_Data['data']['contact']['hrName']
+            ContactList.append(Job_Hr)
+            # print(ContactList)  # 連絡人
+            Job_phone = json_Data['data']['contact']['phone']
+            PhoneList.append(Job_phone)
+            # print(PhoneList)  # 連絡電話
+            # Job_Hr_mail = json_Data['data']['contact']['email']
+            # MailList.append(Job_Hr_mail)
+            # print(MailList)  # 連絡郵箱
+
+            print('=' * 50)
+
+            df = pd.DataFrame(columns=columns)
+            df['公司名稱'] = CompanyList
+            # print(len(CompanyList))
+            df['職稱'] = TitleList
+            # print(len(TitleList))
+            df['工作內容'] = ContList
+            # print(len(ContList))
+            df['工作地區'] = AddressList
+            # print(len(AddressList))
+            df['工作經歷'] = YearList
+            # print(len(YearList))
+            df['擅長工具'] = SpecList
+            df['擅長工具'] = df['擅長工具'].apply(lambda x: str(x).replace('[', '').replace(']', '').replace("'", ''))
+            # print(len(SpecList))
+            df['連絡人'] = ContactList
+            # print(len(ContactList))
+            df['104連結'] = LinkList
+            # print(len(LinkList))
+            df['薪資'] = SalList
+            # print(len(SalList))
+            df['學歷要求'] = EduList
+            # print(len(EduList))
+            df['電話'] = PhoneList
+            # print(len(PhoneList))
+            df['福利制度'] = WelfList
+            # print(len(WelfList))
+            df['其他條件'] = OtherList
+            # print(len(OtherList))
+
+            for c in df:
+                df[c] = df[c].apply(lambda x: str(x).replace('\n', '').replace("'", '').replace("=", ''))
+
+            # print(df)
+
+        # 格式化成2016-03-20形式
+        daytime = time.strftime("%Y%m%d", time.localtime())
+        file_title = k + '_' + str(pages) + '_' + str(daytime)  # 以keyword加頁數加日期為檔名
+        df.to_csv(path + '/' + '%s.csv' % (file_title), index=0, encoding='utf-8-sig')  # 一頁存一個csv檔
+
+        time.sleep(3)
+
+
+else:
+    print('End of pages！')
+
+# 將該資料夾下的所有檔案存入一個列表
+file_list = listdir(path)
+# 讀取第一個CSV檔案幷包含表頭
+df = pd.read_csv(path + '/' + file_list[0])  # 編碼預設UTF-8，若亂碼自行更改
+# 將讀取的第一個CSV檔案寫入合併後的檔案儲存
+all_Csv = path + '/' + 'all_%s_%s.csv' % (k, str(daytime))
+df.to_csv(all_Csv, encoding="utf_8_sig", index=False)
+
+# 迴圈遍歷列表中各個CSV檔名，並追加到合併後的檔案
+for i in range(1, len(file_list)):
+    df = pd.read_csv(path + '/' + file_list[i])
+    df.to_csv(all_Csv, encoding="utf_8_sig", index=0, header=0, mode='a+')
